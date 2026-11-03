@@ -6,7 +6,7 @@ export async function PUT(request, { params }) {
   try {
     const { id } = params;
     const body = await request.json();
-    const { name, role, phone, address, password } = body;
+    const { name, role, phone, address, upi_id, password } = body;
 
     if (password) {
       if (password.length < 5) {
@@ -28,9 +28,10 @@ export async function PUT(request, { params }) {
           role = COALESCE(?, role),
           phone = COALESCE(?, phone),
           address = COALESCE(?, address),
+          upi_id = COALESCE(?, upi_id),
           password_hash = ?
          WHERE user_id = ?`,
-        [name, role, phone, address, secureHash, id]
+        [name, role, phone, address, upi_id, secureHash, id]
       );
     } else {
       await query(
@@ -38,15 +39,16 @@ export async function PUT(request, { params }) {
           name = COALESCE(?, name),
           role = COALESCE(?, role),
           phone = COALESCE(?, phone),
-          address = COALESCE(?, address)
+          address = COALESCE(?, address),
+          upi_id = COALESCE(?, upi_id)
          WHERE user_id = ?`,
-        [name, role, phone, address, id]
+        [name, role, phone, address, upi_id, id]
       );
     }
 
     // Fetch updated user to return
     const { rows: updated } = await query(
-      `SELECT user_id, name, email, role, phone, address, created_at FROM users WHERE user_id = ?`,
+      `SELECT user_id, name, email, role, phone, address, upi_id, created_at FROM users WHERE user_id = ?`,
       [id]
     );
 

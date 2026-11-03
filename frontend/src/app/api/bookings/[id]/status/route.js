@@ -21,12 +21,22 @@ export async function PATCH(request, { params }) {
 
     await connection.query(`UPDATE bookings SET status = ? WHERE booking_id = ?`, [status, id]);
 
-    let paymentStatus = 'pending';
-    if (status === 'approved') paymentStatus = 'held';
-    else if (status === 'completed') paymentStatus = 'refunded';
-    else if (status === 'rejected' || status === 'cancelled') paymentStatus = 'cancelled';
-
-    await connection.query(`UPDATE payments SET status = ? WHERE booking_id = ?`, [paymentStatus, id]);
+    if (status === 'approved') {
+      await connection.query(`UPDATE payments SET status = 'held' WHERE booking_id = ?`, [id]);
+    } else if (status === 'completed') {
+      // Equipment returned: refund refundable security deposit without deleting receipt
+      await connection.query(
+        `UPDATE payments SET 
+          status = 'refunded',
+          refund_status = 'refunded',
+          refund_amount = security_deposit,
+          refund_date = CURRENT_TIMESTAMP
+         WHERE booking_id = ?`,
+        [id]
+      );
+    } else if (status === 'rejected' || status === 'cancelled') {
+      await connection.query(`UPDATE payments SET status = 'cancelled' WHERE booking_id = ?`, [id]);
+    }
 
     await connection.commit();
 

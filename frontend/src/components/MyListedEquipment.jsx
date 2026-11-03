@@ -12,7 +12,11 @@ import {
   Calendar, 
   ShieldCheck, 
   User,
-  Power
+  Power,
+  Receipt,
+  FileText,
+  DollarSign,
+  Smartphone
 } from 'lucide-react';
 
 export default function MyListedEquipment({
@@ -22,16 +26,17 @@ export default function MyListedEquipment({
   onOpenLendModal,
   onToggleActive,
   onDeleteItem,
-  onBookingStatusChange
+  onBookingStatusChange,
+  onOpenReceipt
 }) {
-  const [filter, setFilter] = useState('all'); // 'all' | 'requests'
+  const [filter, setFilter] = useState('all');
 
   // Items owned by logged in user
-  const myItems = items.filter(i => i.owner_id === currentUser?.user_id);
+  const myItems = items.filter((i) => i.owner_id === currentUser?.user_id);
 
   // Incoming booking requests for my equipment
-  const incomingRequests = bookings.filter(b => b.lender_id === currentUser?.user_id);
-  const pendingRequests = incomingRequests.filter(b => b.status === 'requested');
+  const incomingRequests = bookings.filter((b) => b.lender_id === currentUser?.user_id);
+  const pendingRequests = incomingRequests.filter((b) => b.status === 'requested');
 
   return (
     <div className="space-y-6">
@@ -40,7 +45,7 @@ export default function MyListedEquipment({
         <div>
           <h2 className="text-xl font-bold text-slate-900 dark:text-white">My Listed Equipment</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Manage your shared tools, update availability, and review incoming borrower requests.
+            Manage your shared tools, review payments, and track equipment loans.
           </p>
         </div>
 
@@ -122,7 +127,7 @@ export default function MyListedEquipment({
         )}
       </div>
 
-      {/* SECTION 2: MY LISTED EQUIPMENT TABLE/CARDS */}
+      {/* SECTION 2: MY LISTED EQUIPMENT TABLE/CARDS WITH PAYMENT DETAILS & RECEIPTS */}
       <div>
         <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Your Equipment Listings ({myItems.length})</h3>
 
@@ -142,62 +147,127 @@ export default function MyListedEquipment({
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {myItems.map((item) => (
-              <div
-                key={item.item_id}
-                className="bg-white dark:bg-slate-900/80 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                      {item.category}
-                    </span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                      item.is_active
-                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                        : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
-                    }`}>
-                      {item.is_active ? 'Active Listing' : 'Inactive'}
-                    </span>
+            {myItems.map((item) => {
+              // Find bookings and payment history for this equipment
+              const itemBookings = bookings.filter((b) => b.item_id === item.item_id);
+              const paidBookings = itemBookings.filter((b) => b.payment_id || b.payment_status === 'held' || b.payment_status === 'refunded');
+
+              return (
+                <div
+                  key={item.item_id}
+                  className="bg-white dark:bg-slate-900/80 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-sm"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                        {item.category}
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        item.is_active
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                          : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                      }`}>
+                        {item.is_active ? 'Active Listing' : 'Inactive'}
+                      </span>
+                    </div>
+
+                    <h4 className="text-base font-bold text-slate-900 dark:text-white leading-snug">{item.title}</h4>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">
+                      {item.description || 'No description provided.'}
+                    </p>
+
+                    <div className="grid grid-cols-3 gap-2 text-xs text-slate-700 dark:text-slate-300 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80">
+                      <div>
+                        <span className="text-slate-400 text-[10px] uppercase block">Condition</span>
+                        <strong className="text-slate-800 dark:text-slate-200">{item.item_condition}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] uppercase block">Rental Rate</span>
+                        <strong className="text-purple-600 dark:text-purple-400">₹{Number(item.rental_rate || 0)}/day</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 text-[10px] uppercase block">Deposit</span>
+                        <strong className="text-emerald-600 dark:text-emerald-400">₹{Number(item.deposit_amount).toLocaleString()}</strong>
+                      </div>
+                    </div>
+
+                    {/* PAYMENT DETAILS FOR THIS LISTING (User Request Feature) */}
+                    {paidBookings.length > 0 && (
+                      <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/20 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1">
+                            <Receipt className="w-3.5 h-3.5" />
+                            <span>Payment History & Receipts ({paidBookings.length})</span>
+                          </span>
+                          <span className="text-[10px] text-slate-400">Direct UPI Payout</span>
+                        </div>
+
+                        <div className="space-y-2">
+                          {paidBookings.map((pb) => {
+                            const isRefunded = pb.refund_status === 'refunded' || pb.status === 'completed';
+                            return (
+                              <div
+                                key={pb.booking_id}
+                                className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
+                              >
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-slate-900 dark:text-white">Borrower: {pb.borrower_name}</span>
+                                    {isRefunded ? (
+                                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                                        Deposit Refunded
+                                      </span>
+                                    ) : (
+                                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                        Escrow Held
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                                    Total Paid: <strong className="text-emerald-600 dark:text-emerald-400 font-mono">₹{Number(pb.payment_amount || pb.total_paid || pb.deposit_held).toLocaleString()}</strong>
+                                    {pb.receipt_number && <span className="ml-2 font-mono text-[10px]">({pb.receipt_number})</span>}
+                                  </div>
+                                </div>
+
+                                {onOpenReceipt && (
+                                  <button
+                                    onClick={() => onOpenReceipt(pb)}
+                                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] transition-all active:scale-95 shadow-sm"
+                                    title="Download Receipt"
+                                  >
+                                    <FileText className="w-3 h-3" />
+                                    <span>Download Receipt</span>
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  <h4 className="text-base font-bold text-slate-900 dark:text-white mb-1.5">{item.title}</h4>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 mb-3">
-                    {item.description || 'No description provided.'}
-                  </p>
+                  {/* Actions: Toggle Active & Delete */}
+                  <div className="pt-3 mt-3 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between">
+                    <button
+                      onClick={() => onToggleActive(item.item_id, item.is_active)}
+                      className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
+                    >
+                      <Power className={`w-3.5 h-3.5 ${item.is_active ? 'text-emerald-500' : 'text-slate-400'}`} />
+                      <span>{item.is_active ? 'Deactivate Listing' : 'Make Active'}</span>
+                    </button>
 
-                  <div className="flex items-center gap-4 text-xs text-slate-700 dark:text-slate-300 pb-3 border-b border-slate-200 dark:border-slate-800/80">
-                    <div>
-                      <span className="text-slate-400 text-[10px] uppercase block">Condition</span>
-                      <strong className="text-slate-800 dark:text-slate-200">{item.item_condition}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 text-[10px] uppercase block">Deposit</span>
-                      <strong className="text-emerald-600 dark:text-emerald-400">₹{Number(item.deposit_amount).toLocaleString()}</strong>
-                    </div>
+                    <button
+                      onClick={() => onDeleteItem(item.item_id, item.title)}
+                      className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors p-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete</span>
+                    </button>
                   </div>
                 </div>
-
-                {/* Actions: Toggle Active & Delete */}
-                <div className="pt-3 flex items-center justify-between">
-                  <button
-                    onClick={() => onToggleActive(item.item_id, item.is_active)}
-                    className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
-                  >
-                    <Power className={`w-3.5 h-3.5 ${item.is_active ? 'text-emerald-500' : 'text-slate-400'}`} />
-                    <span>{item.is_active ? 'Deactivate Listing' : 'Make Active'}</span>
-                  </button>
-
-                  <button
-                    onClick={() => onDeleteItem(item.item_id, item.title)}
-                    className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors p-1"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Delete</span>
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
+import LandingPage from '../components/LandingPage';
 import Hero from '../components/Hero';
 import ItemFilter from '../components/ItemFilter';
 import ItemCard from '../components/ItemCard';
@@ -10,6 +11,7 @@ import LendItemModal from '../components/LendItemModal';
 import BookingsList from '../components/BookingsList';
 import RatingModal from '../components/RatingModal';
 import PaymentModal from '../components/PaymentModal';
+import ReceiptModal from '../components/ReceiptModal';
 import CommunitiesView from '../components/CommunitiesView';
 import UserDashboard from '../components/UserDashboard';
 import MyListedEquipment from '../components/MyListedEquipment';
@@ -32,10 +34,12 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
 
+  // Guest view state: 'home' | 'login' | 'register'
+  const [guestView, setGuestView] = useState('home');
+
   // View / Tab State:
-  // For User: 'dashboard' | 'catalog' | 'my-listings' | 'bookings' | 'communities' | 'profile'
-  // For Admin: 'admin' | 'catalog' | 'bookings' | 'communities' | 'profile'
-  const [activeTab, setActiveTab] = useState('dashboard');
+  // 'home' | 'dashboard' | 'catalog' | 'my-listings' | 'bookings' | 'communities' | 'profile' | 'admin'
+  const [activeTab, setActiveTab] = useState('home');
 
   // Application Data State
   const [items, setItems] = useState([]);
@@ -56,6 +60,7 @@ export default function Home() {
   const [ratingModalBooking, setRatingModalBooking] = useState(null);
   const [paymentModalBooking, setPaymentModalBooking] = useState(null);
   const [paymentModalItem, setPaymentModalItem] = useState(null);
+  const [viewReceiptModal, setViewReceiptModal] = useState(null);
 
   // Toast Notification
   const [toast, setToast] = useState(null);
@@ -103,7 +108,7 @@ export default function Home() {
         const parsed = JSON.parse(stored);
         if (parsed && parsed.user_id) {
           setCurrentUser(parsed);
-          setActiveTab(parsed.role === 'admin' ? 'admin' : 'dashboard');
+          setActiveTab('home'); // Show home page first as requested
         }
       }
     } catch (e) {
@@ -113,29 +118,32 @@ export default function Home() {
     }
   }, []);
 
-  // Fetch application data
+  // Fetch application data (runs for both guests and authenticated users)
   const loadData = async () => {
     try {
       setLoading(true);
 
-      const [itemsRes, commsRes, bookingsRes, statsRes] = await Promise.all([
+      const [itemsRes, commsRes, statsRes] = await Promise.all([
         fetch('/api/items'),
         fetch('/api/communities'),
-        fetch('/api/bookings'),
         fetch('/api/stats/dashboard')
       ]);
 
-      const [itemsData, commsData, bookingsData, statsData] = await Promise.all([
+      const [itemsData, commsData, statsData] = await Promise.all([
         itemsRes.json(),
         commsRes.json(),
-        bookingsRes.json(),
         statsRes.json()
       ]);
 
       if (itemsData.success) setItems(itemsData.data || []);
       if (commsData.success) setCommunities(commsData.data || []);
-      if (bookingsData.success) setBookings(bookingsData.data || []);
       if (statsData.success) setStats(statsData.data || null);
+
+      if (currentUser) {
+        const bookingsRes = await fetch('/api/bookings');
+        const bookingsData = await bookingsRes.json();
+        if (bookingsData.success) setBookings(bookingsData.data || []);
+      }
     } catch (err) {
       console.error('Failed to load application data:', err);
     } finally {
@@ -144,15 +152,14 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (currentUser) {
-      loadData();
-    }
+    loadData();
   }, [currentUser]);
 
   // Login handler
   const handleLoginSuccess = (user) => {
     setCurrentUser(user);
     localStorage.setItem('toolloop_user', JSON.stringify(user));
+    setGuestView('home');
     setActiveTab(user.role === 'admin' ? 'admin' : 'dashboard');
     showToast(`Welcome back, ${user.name}!`);
   };
@@ -161,7 +168,8 @@ export default function Home() {
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('toolloop_user');
-    setActiveTab('dashboard');
+    setActiveTab('home');
+    setGuestView('home');
     showToast('You have been signed out.');
   };
 
@@ -188,7 +196,7 @@ export default function Home() {
     return true;
   });
 
-  // Handle Booking Status Update (e.g. Accept request, Decline, Complete)
+  // Handle Booking Status Update
   const handleBookingStatusChange = async (bookingId, newStatus) => {
     try {
       const res = await fetch(`/api/bookings/${bookingId}/status`, {
@@ -198,7 +206,11 @@ export default function Home() {
       });
       const data = await res.json();
       if (data.success) {
-        showToast(`Booking #${bookingId} updated to ${newStatus}!`);
+        showToast(
+          newStatus === 'completed'
+            ? `Booking #${bookingId} completed! Security deposit released to borrower.`
+            : `Booking #${bookingId} updated to ${newStatus}!`
+        );
         await loadData();
       } else {
         showToast(data.message || 'Status update failed', 'error');
@@ -243,7 +255,10 @@ export default function Home() {
 
   // Handle Community Join
   const handleCommunityToggle = async (communityId) => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      setGuestView('login');
+      return;
+    }
     try {
       const res = await fetch('/api/communities', {
         method: 'POST',
@@ -273,14 +288,35 @@ export default function Home() {
     );
   }
 
-  // 1. If not logged in -> SHOW AUTHENTICATION SCREEN
+  // 1. IF GUEST USER (NOT LOGGED IN): SHOW HOME PAGE FIRST!
   if (!currentUser) {
+    if (guestView === 'login' || guestView === 'register') {
+      return (
+        <AuthPage
+          onLoginSuccess={handleLoginSuccess}
+          communities={communities}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          onBackToHome={() => setGuestView('home')}
+          defaultIsRegister={guestView === 'register'}
+        />
+      );
+    }
+
     return (
-      <AuthPage
-        onLoginSuccess={handleLoginSuccess}
-        communities={communities}
+      <LandingPage
+        currentUser={null}
         theme={theme}
         toggleTheme={toggleTheme}
+        onOpenLogin={() => setGuestView('login')}
+        onOpenRegister={() => setGuestView('register')}
+        onGoToDashboard={() => setGuestView('login')}
+        onExploreClick={() => {
+          showToast('Please sign in or create an account to request tools.', 'error');
+          setGuestView('login');
+        }}
+        items={items}
+        stats={stats}
       />
     );
   }
@@ -322,11 +358,30 @@ export default function Home() {
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* HOME / LANDING PAGE VIEW FOR AUTHENTICATED USERS */}
+        {activeTab === 'home' && (
+          <div className="-mx-4 sm:-mx-6 lg:-mx-8 -my-8">
+            <LandingPage
+              currentUser={currentUser}
+              theme={theme}
+              toggleTheme={toggleTheme}
+              onOpenLogin={() => {}}
+              onOpenRegister={() => {}}
+              onGoToDashboard={() => setActiveTab(isAdmin ? 'admin' : 'dashboard')}
+              onLogout={handleLogout}
+              onExploreClick={() => setActiveTab('catalog')}
+              items={items}
+              stats={stats}
+            />
+          </div>
+        )}
+
         {/* ADMIN PORTAL TAB (Strictly for admins only) */}
         {isAdmin && activeTab === 'admin' && (
           <AdminDashboard
             currentUser={currentUser}
             onShowToast={showToast}
+            onOpenReceipt={(rcp) => setViewReceiptModal(rcp)}
           />
         )}
 
@@ -356,7 +411,7 @@ export default function Home() {
                 <div>
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Explore Equipment</h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Browse equipment listed by community members. Request tools with refundable security deposits.
+                    Browse equipment listed by community members. Request tools with customizable, refundable security deposits.
                   </p>
                 </div>
                 <button
@@ -423,6 +478,7 @@ export default function Home() {
             onToggleActive={handleToggleItemActive}
             onDeleteItem={handleDeleteItem}
             onBookingStatusChange={handleBookingStatusChange}
+            onOpenReceipt={(rcp) => setViewReceiptModal(rcp)}
           />
         )}
 
@@ -434,7 +490,7 @@ export default function Home() {
                 {isAdmin ? 'All Platform Bookings' : 'My Bookings & Equipment Loans'}
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Track borrowed equipment and manage incoming requests for your equipment.
+                Track borrowed equipment, review payment receipts, and manage incoming requests.
               </p>
             </div>
 
@@ -447,6 +503,7 @@ export default function Home() {
                 setPaymentModalBooking(b);
                 setPaymentModalItem({ title: b.item_title, deposit_amount: b.deposit_held });
               }}
+              onOpenReceipt={(rcp) => setViewReceiptModal(rcp)}
             />
           </div>
         )}
@@ -512,7 +569,7 @@ export default function Home() {
         />
       )}
 
-      {/* RAZORPAY UPI PAYMENT GATEWAY MODAL */}
+      {/* DIRECT UPI ESCROW PAYMENT GATEWAY MODAL */}
       {paymentModalBooking && (
         <PaymentModal
           booking={paymentModalBooking}
@@ -523,11 +580,18 @@ export default function Home() {
             setPaymentModalItem(null);
           }}
           onPaymentSuccess={(verification) => {
-            showToast('Razorpay Escrow deposit secured successfully!');
+            showToast('UPI Escrow deposit secured successfully!');
             loadData();
-            setPaymentModalBooking(null);
-            setPaymentModalItem(null);
           }}
+          onOpenReceipt={(rcp) => setViewReceiptModal(rcp)}
+        />
+      )}
+
+      {/* OFFICIAL PAYMENT RECEIPT MODAL */}
+      {viewReceiptModal && (
+        <ReceiptModal
+          receipt={viewReceiptModal}
+          onClose={() => setViewReceiptModal(null)}
         />
       )}
 

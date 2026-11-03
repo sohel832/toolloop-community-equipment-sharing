@@ -10,22 +10,26 @@ import {
   MapPin, 
   ShieldCheck, 
   ArrowRight, 
+  ArrowLeft,
   AlertCircle,
   Building,
   Sun,
   Moon,
   Eye,
   EyeOff,
-  Check
+  Check,
+  CreditCard
 } from 'lucide-react';
 
 export default function AuthPage({ 
   onLoginSuccess, 
   communities = [], 
   theme = 'dark', 
-  toggleTheme 
+  toggleTheme,
+  onBackToHome,
+  defaultIsRegister = false
 }) {
-  const [isRegister, setIsRegister] = useState(false);
+  const [isRegister, setIsRegister] = useState(defaultIsRegister);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -44,6 +48,7 @@ export default function AuthPage({
   const [role, setRole] = useState('member');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [upiId, setUpiId] = useState('');
   const [communityId, setCommunityId] = useState('');
 
   // Live Password Strength Criteria
@@ -116,6 +121,7 @@ export default function AuthPage({
           role,
           phone,
           address,
+          upi_id: upiId ? upiId.trim() : null,
           community_id: communityId || null
         })
       });
@@ -145,6 +151,17 @@ export default function AuthPage({
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden transition-colors duration-200">
       {/* Background Subtle Gradient */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[550px] bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Back to Home Button at top left */}
+      {onBackToHome && (
+        <button
+          onClick={onBackToHome}
+          className="absolute top-6 left-6 px-3.5 py-2 rounded-xl flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-sm hover:scale-105 active:scale-95 transition-all z-20"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Home</span>
+        </button>
+      )}
 
       {/* Theme Toggle Button at top right */}
       {toggleTheme && (
@@ -434,6 +451,26 @@ export default function AuthPage({
                     className="w-full px-2.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                   />
                 </div>
+              </div>
+
+              {/* Optional UPI ID */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Enter ur UPI ID <span className="text-[10px] text-slate-400 font-normal">(Optional — reflects in profile & equipment listings)</span>
+                </label>
+                <div className="relative">
+                  <CreditCard className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={upiId}
+                    onChange={(e) => setUpiId(e.target.value)}
+                    placeholder="e.g. 9611668103@ptyes or yourname@okhdfcbank"
+                    className="w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  When you list tools to lend, borrower payments & deposits will go to this account.
+                </p>
               </div>
 
               <div>

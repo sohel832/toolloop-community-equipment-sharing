@@ -40,7 +40,7 @@ async function login(req, res) {
     }
 
     const [users] = await pool.query(
-      `SELECT user_id, name, email, password_hash, role, phone, address, created_at FROM users WHERE email = ?`,
+      `SELECT user_id, name, email, password_hash, role, phone, address, upi_id, created_at FROM users WHERE email = ?`,
       [email.trim().toLowerCase()]
     );
 
@@ -62,6 +62,7 @@ async function login(req, res) {
       role: user.role,
       phone: user.phone,
       address: user.address,
+      upi_id: user.upi_id || null,
       created_at: user.created_at
     };
 
@@ -75,7 +76,7 @@ async function login(req, res) {
 // Register
 async function register(req, res) {
   try {
-    const { name, email, password, role = 'member', phone, address, community_id } = req.body;
+    const { name, email, password, role = 'member', phone, address, upi_id, community_id } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, message: 'Name, email, and password are required.' });
@@ -106,8 +107,8 @@ async function register(req, res) {
     const assignedRole = role === 'admin' ? 'admin' : 'member';
 
     const [result] = await pool.query(
-      `INSERT INTO users (name, email, password_hash, role, phone, address) VALUES (?, ?, ?, ?, ?, ?)`,
-      [name.trim(), cleanEmail, secureHash, assignedRole, phone ? phone.trim() : null, address ? address.trim() : null]
+      `INSERT INTO users (name, email, password_hash, role, phone, address, upi_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [name.trim(), cleanEmail, secureHash, assignedRole, phone ? phone.trim() : null, address ? address.trim() : null, upi_id ? upi_id.trim() : null]
     );
 
     const newUserId = result.insertId;
@@ -125,7 +126,8 @@ async function register(req, res) {
       email: cleanEmail,
       role: assignedRole,
       phone: phone || null,
-      address: address || null
+      address: address || null,
+      upi_id: upi_id ? upi_id.trim() : null
     };
 
     res.status(201).json({ success: true, message: 'Account registered successfully', user: safeUser });

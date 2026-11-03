@@ -15,7 +15,8 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
-  Check
+  Check,
+  Smartphone
 } from 'lucide-react';
 
 export default function UserProfileView({
@@ -25,6 +26,7 @@ export default function UserProfileView({
 }) {
   const [phone, setPhone] = useState(currentUser?.phone || '');
   const [address, setAddress] = useState(currentUser?.address || '');
+  const [upiId, setUpiId] = useState(currentUser?.upi_id || '');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -70,7 +72,8 @@ export default function UserProfileView({
     try {
       const payload = {
         phone: phone.trim(),
-        address: address.trim()
+        address: address.trim(),
+        upi_id: upiId.trim()
       };
 
       if (newPassword) {
@@ -163,9 +166,29 @@ export default function UserProfileView({
           </div>
         </div>
 
-        {/* Editable Contact Info */}
+        {/* Editable Contact Info & UPI ID */}
         <div className="space-y-4">
-          <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Contact & Delivery Address</h4>
+          <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Contact & Payout Information</h4>
+
+          {/* Enter ur UPI ID Element */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              Enter ur UPI ID <span className="text-emerald-600 dark:text-emerald-400 font-bold">*</span>
+            </label>
+            <div className="relative">
+              <Smartphone className="w-4 h-4 text-emerald-600 dark:text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={upiId}
+                onChange={(e) => setUpiId(e.target.value)}
+                placeholder="e.g. 9611668103@ptyes or name@okhdfcbank"
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-mono"
+              />
+            </div>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+              When members borrow your listed equipment, rental charges and refundable security deposits will be paid directly to this UPI address.
+            </p>
+          </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Phone Number</label>

@@ -17,11 +17,13 @@ export async function GET(request) {
         i.title,
         i.description,
         i.item_condition,
+        i.rental_rate,
         i.deposit_amount,
         i.is_active,
         u.name AS owner_name,
         u.email AS owner_email,
         u.phone AS owner_phone,
+        u.upi_id AS owner_upi_id,
         GROUP_CONCAT(DISTINCT c.name SEPARATOR ', ') AS community_names,
         COALESCE(ROUND(AVG(r.score), 1), 5.0) AS avg_rating,
         COUNT(DISTINCT r.rating_id) AS total_reviews,
@@ -64,7 +66,7 @@ export async function GET(request) {
     }
 
     sql += `
-      GROUP BY i.item_id, i.owner_id, i.category, i.title, i.description, i.item_condition, i.deposit_amount, i.is_active, u.name, u.email, u.phone
+      GROUP BY i.item_id, i.owner_id, i.category, i.title, i.description, i.item_condition, i.rental_rate, i.deposit_amount, i.is_active, u.name, u.email, u.phone, u.upi_id
       ORDER BY i.item_id DESC
     `;
 
@@ -78,16 +80,36 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { owner_id, category, title, description, item_condition = 'Good', deposit_amount = 0, start_date, end_date } = body;
+    const { 
+      owner_id, 
+      category, 
+      title, 
+      description, 
+      item_condition = 'Good', 
+      rental_rate = 0,
+      deposit_amount = 0, 
+      start_date, 
+      end_date,
+      lender_upi_id
+    } = body;
 
     if (!owner_id || !category || !title) {
       return NextResponse.json({ success: false, message: 'owner_id, category, and title are required' }, { status: 400 });
     }
 
+    // If lender updated/provided UPI ID, ensure user's profile is updated
+    if (lender_upi_id && lender_upi_id.trim()) {
+      try {
+        await query(`UPDATE users SET upi_id = ? WHERE user_id = ?`, [lender_upi_id.trim(), owner_id]);
+      } catch (e) {
+        console.warn('Failed saving lender UPI ID:', e.message);
+      }
+    }
+
     const { rows: result } = await query(
-      `INSERT INTO items (owner_id, category, title, description, item_condition, deposit_amount, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, 1)`,
-      [owner_id, category, title, description || '', item_condition, deposit_amount]
+      `INSERT INTO items (owner_id, category, title, description, item_condition, rental_rate, deposit_amount, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+      [owner_id, category, title, description || '', item_condition, parseFloat(rental_rate) || 0, parseFloat(deposit_amount) || 0]
     );
 
     const newItemId = result.insertId;
@@ -104,7 +126,7 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       message: 'Item listed successfully',
-      data: { item_id: newItemId, title, category, deposit_amount }
+      data: { item_id: newItemId, title, category, rental_rate, deposit_amount }
     }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

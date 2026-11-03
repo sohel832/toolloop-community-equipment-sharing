@@ -15,7 +15,7 @@ export async function POST(request) {
     }
 
     const { rows: users } = await query(
-      `SELECT user_id, name, email, password_hash, role, phone, address, created_at FROM users WHERE email = ?`,
+      `SELECT user_id, name, email, password_hash, role, phone, address, upi_id, created_at FROM users WHERE email = ?`,
       [email.trim().toLowerCase()]
     );
 
@@ -44,6 +44,7 @@ export async function POST(request) {
       role: user.role,
       phone: user.phone,
       address: user.address,
+      upi_id: user.upi_id || null,
       created_at: user.created_at
     };
 

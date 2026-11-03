@@ -16,20 +16,42 @@ export async function GET(request) {
         b.lender_id,
         b.start_date,
         b.end_date,
-        b.status,
+        b.rental_charges,
+        b.platform_fee,
         b.deposit_held,
+        b.total_paid,
+        b.status,
         b.created_at,
         i.title AS item_title,
         i.category AS item_category,
         i.item_condition,
+        i.rental_rate,
         borrower.name AS borrower_name,
         borrower.email AS borrower_email,
+        borrower.phone AS borrower_phone,
+        borrower.upi_id AS borrower_upi_id,
         lender.name AS lender_name,
         lender.email AS lender_email,
+        lender.phone AS lender_phone,
+        lender.upi_id AS lender_upi_id,
         p.payment_id,
+        p.receipt_number,
+        p.transaction_id,
         p.amount AS payment_amount,
+        p.rental_charges AS payment_rental_charges,
+        p.platform_fee AS payment_platform_fee,
+        p.security_deposit AS payment_security_deposit,
         p.status AS payment_status,
         p.method AS payment_method,
+        p.upi_app,
+        p.upi_ref_id,
+        p.payer_upi_id,
+        p.payee_upi_id,
+        p.refund_status,
+        p.refund_amount,
+        p.refund_date,
+        p.receipt_email,
+        p.payment_time,
         r.rating_id,
         r.score AS rating_score,
         r.comment AS rating_comment
@@ -88,7 +110,7 @@ export async function POST(request) {
     await connection.beginTransaction();
 
     const [items] = await connection.query(
-      `SELECT item_id, owner_id, title, deposit_amount, is_active FROM items WHERE item_id = ?`,
+      `SELECT item_id, owner_id, title, rental_rate, deposit_amount, is_active FROM items WHERE item_id = ?`,
       [item_id]
     );
 
@@ -104,19 +126,30 @@ export async function POST(request) {
       return NextResponse.json({ success: false, message: 'You cannot borrow your own listed item' }, { status: 400 });
     }
 
-    const depositAmount = item.deposit_amount || 0;
+    // Calculate rental duration in days
+    const sDate = new Date(start_date);
+    const eDate = new Date(end_date);
+    const diffTime = Math.abs(eDate - sDate);
+    const durationDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+
+    const rentalRate = parseFloat(item.rental_rate) || 0;
+    const rentalCharges = rentalRate * durationDays;
+    const platformFee = 20.00;
+    const depositAmount = parseFloat(item.deposit_amount) || 0;
+    const totalPaid = rentalCharges + platformFee + depositAmount;
 
     const [bookingResult] = await connection.query(
-      `INSERT INTO bookings (item_id, borrower_id, lender_id, start_date, end_date, status, deposit_held)
-       VALUES (?, ?, ?, ?, ?, 'requested', ?)`,
-      [item_id, borrower_id, item.owner_id, start_date, end_date, depositAmount]
+      `INSERT INTO bookings (item_id, borrower_id, lender_id, start_date, end_date, rental_charges, platform_fee, deposit_held, total_paid, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested')`,
+      [item_id, borrower_id, item.owner_id, start_date, end_date, rentalCharges, platformFee, depositAmount, totalPaid]
     );
 
     const bookingId = bookingResult.insertId;
 
     await connection.query(
-      `INSERT INTO payments (booking_id, amount, status, method) VALUES (?, ?, 'pending', ?)`,
-      [bookingId, depositAmount, payment_method]
+      `INSERT INTO payments (booking_id, amount, rental_charges, platform_fee, security_deposit, status, method) 
+       VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
+      [bookingId, totalPaid, rentalCharges, platformFee, depositAmount, payment_method]
     );
 
     await connection.commit();
@@ -131,7 +164,11 @@ export async function POST(request) {
         lender_id: item.owner_id,
         start_date,
         end_date,
+        rental_charges: rentalCharges,
+        platform_fee: platformFee,
         deposit_held: depositAmount,
+        total_paid: totalPaid,
+        duration_days: durationDays,
         status: 'requested'
       }
     }, { status: 201 });

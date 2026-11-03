@@ -13,7 +13,8 @@ import {
   LayoutDashboard, 
   User,
   Sun,
-  Moon
+  Moon,
+  Home
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -32,7 +33,7 @@ export default function Navbar({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         {/* Brand Logo */}
         <div 
-          onClick={() => setActiveTab(isAdmin ? 'admin' : 'dashboard')} 
+          onClick={() => setActiveTab('home')} 
           className="flex items-center gap-2.5 cursor-pointer group shrink-0"
         >
           <div className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
@@ -48,6 +49,19 @@ export default function Navbar({
 
         {/* Navigation Tabs */}
         <nav className="hidden lg:flex items-center gap-1 bg-slate-100 dark:bg-slate-900/90 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+          {/* Home Link */}
+          <button
+            onClick={() => setActiveTab('home')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              activeTab === 'home'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800'
+            }`}
+          >
+            <Home className="w-3.5 h-3.5" />
+            <span>Home</span>
+          </button>
+
           {/* ADMIN TABS */}
           {isAdmin ? (
             <>
@@ -239,6 +253,12 @@ export default function Navbar({
 
       {/* Mobile nav bar */}
       <div className="lg:hidden flex items-center justify-around border-t border-slate-200 dark:border-slate-800/80 px-2 py-1.5 bg-white dark:bg-slate-950 text-xs overflow-x-auto">
+        <button 
+          onClick={() => setActiveTab('home')}
+          className={`px-2 py-1 rounded font-semibold ${activeTab === 'home' ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-500 dark:text-slate-400'}`}
+        >
+          Home
+        </button>
         {isAdmin ? (
           <button 
             onClick={() => setActiveTab('admin')}

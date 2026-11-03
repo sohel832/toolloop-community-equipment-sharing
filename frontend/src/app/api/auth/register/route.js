@@ -5,7 +5,7 @@ import { hashPassword } from '@/lib/auth';
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, email, password, role = 'member', phone, address, community_id } = body;
+    const { name, email, password, role = 'member', phone, address, upi_id, community_id } = body;
 
     if (!name || !email || !password) {
       return NextResponse.json({
@@ -62,9 +62,17 @@ export async function POST(request) {
     const assignedRole = role === 'admin' ? 'admin' : 'member';
 
     const { rows: result } = await query(
-      `INSERT INTO users (name, email, password_hash, role, phone, address)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [name.trim(), cleanEmail, secureHash, assignedRole, phone ? phone.trim() : null, address ? address.trim() : null]
+      `INSERT INTO users (name, email, password_hash, role, phone, address, upi_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        name.trim(), 
+        cleanEmail, 
+        secureHash, 
+        assignedRole, 
+        phone ? phone.trim() : null, 
+        address ? address.trim() : null,
+        upi_id ? upi_id.trim() : null
+      ]
     );
 
     const newUserId = result.insertId;
@@ -83,7 +91,8 @@ export async function POST(request) {
       email: cleanEmail,
       role: assignedRole,
       phone: phone || null,
-      address: address || null
+      address: address || null,
+      upi_id: upi_id ? upi_id.trim() : null
     };
 
     return NextResponse.json({

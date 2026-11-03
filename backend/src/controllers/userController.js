@@ -74,7 +74,7 @@ async function getUserById(req, res) {
 // Create new user
 async function createUser(req, res) {
   try {
-    const { name, email, password, role = 'member', phone, address, community_id } = req.body;
+    const { name, email, password, role = 'member', phone, address, upi_id, community_id } = req.body;
 
     if (!name || !email) {
       return res.status(400).json({ success: false, message: 'Name and email are required.' });
@@ -83,9 +83,9 @@ async function createUser(req, res) {
     const password_hash = password ? `hash_${password}` : 'hash_default_secret';
 
     const [result] = await pool.query(
-      `INSERT INTO users (name, email, password_hash, role, phone, address)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [name, email, password_hash, role, phone || null, address || null]
+      `INSERT INTO users (name, email, password_hash, role, phone, address, upi_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [name, email, password_hash, role, phone || null, address || null, upi_id || null]
     );
 
     const newUserId = result.insertId;
@@ -101,7 +101,7 @@ async function createUser(req, res) {
     res.status(201).json({
       success: true,
       message: 'User created successfully',
-      data: { user_id: newUserId, name, email, role, phone, address }
+      data: { user_id: newUserId, name, email, role, phone, address, upi_id }
     });
   } catch (error) {
     console.error('createUser error:', error);
@@ -109,20 +109,21 @@ async function createUser(req, res) {
   }
 }
 
-// Update user (role, phone, address)
+// Update user (role, phone, address, upi_id)
 async function updateUser(req, res) {
   try {
     const { id } = req.params;
-    const { name, role, phone, address } = req.body;
+    const { name, role, phone, address, upi_id } = req.body;
 
     await pool.query(
       `UPDATE users SET
         name = COALESCE(?, name),
         role = COALESCE(?, role),
         phone = COALESCE(?, phone),
-        address = COALESCE(?, address)
+        address = COALESCE(?, address),
+        upi_id = COALESCE(?, upi_id)
        WHERE user_id = ?`,
-      [name, role, phone, address, id]
+      [name, role, phone, address, upi_id, id]
     );
 
     res.json({ success: true, message: 'User updated successfully' });

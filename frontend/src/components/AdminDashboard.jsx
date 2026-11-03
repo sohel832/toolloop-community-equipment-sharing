@@ -19,11 +19,14 @@ import {
   Building,
   PieChart,
   Award,
-  AlertCircle
+  AlertCircle,
+  Receipt,
+  FileText,
+  RotateCcw
 } from 'lucide-react';
 
-export default function AdminDashboard({ currentUser, onShowToast }) {
-  const [adminTab, setAdminTab] = useState('overview'); // 'overview' | 'users' | 'listings' | 'bookings' | 'communities' | 'reviews' | 'analytics'
+export default function AdminDashboard({ currentUser, onShowToast, onOpenReceipt }) {
+  const [adminTab, setAdminTab] = useState('overview'); // 'overview' | 'users' | 'listings' | 'bookings' | 'transactions' | 'communities' | 'reviews' | 'analytics'
   
   // Data states
   const [users, setUsers] = useState([]);
@@ -31,6 +34,7 @@ export default function AdminDashboard({ currentUser, onShowToast }) {
   const [bookings, setBookings] = useState([]);
   const [communities, setCommunities] = useState([]);
   const [ratings, setRatings] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -38,6 +42,7 @@ export default function AdminDashboard({ currentUser, onShowToast }) {
   const [userSearch, setUserSearch] = useState('');
   const [itemSearch, setItemSearch] = useState('');
   const [reviewSearch, setReviewSearch] = useState('');
+  const [paymentSearch, setPaymentSearch] = useState('');
 
   // Create Community Modal (Admin Exclusive Duty)
   const [showCreateCommunityModal, setShowCreateCommunityModal] = useState(false);
@@ -48,21 +53,23 @@ export default function AdminDashboard({ currentUser, onShowToast }) {
   const loadAdminData = async () => {
     setLoading(true);
     try {
-      const [uRes, iRes, bRes, cRes, rRes, sRes] = await Promise.all([
+      const [uRes, iRes, bRes, cRes, rRes, pRes, sRes] = await Promise.all([
         fetch('/api/users'),
         fetch('/api/items?active=false'),
         fetch('/api/bookings'),
         fetch('/api/communities'),
         fetch('/api/ratings'),
+        fetch('/api/payments'),
         fetch('/api/stats/dashboard')
       ]);
 
-      const [uData, iData, bData, cData, rData, sData] = await Promise.all([
+      const [uData, iData, bData, cData, rData, pData, sData] = await Promise.all([
         uRes.json(),
         iRes.json(),
         bRes.json(),
         cRes.json(),
         rRes.json(),
+        pRes.json(),
         sRes.json()
       ]);
 
@@ -71,6 +78,7 @@ export default function AdminDashboard({ currentUser, onShowToast }) {
       if (bData.success) setBookings(bData.data || []);
       if (cData.success) setCommunities(cData.data || []);
       if (rData.success) setRatings(rData.data || []);
+      if (pData.success) setPayments(pData.data || []);
       if (sData.success) setStats(sData.data || null);
     } catch (err) {
       console.error('Error fetching admin data:', err);
@@ -162,6 +170,31 @@ export default function AdminDashboard({ currentUser, onShowToast }) {
       if (data.success) {
         onShowToast(`Booking #${bookingId} status overridden to ${status}`);
         loadAdminData();
+      }
+    } catch (err) {
+      onShowToast(err.message, 'error');
+    }
+  };
+
+  // Process Refund (Preserves Receipt & Updates Refund Status)
+  const handleProcessRefund = async (bookingId, refundAmount) => {
+    if (!confirm(`Confirm releasing refundable security deposit of ₹${Number(refundAmount).toLocaleString()} back to borrower?`)) return;
+    try {
+      const res = await fetch('/api/payments/refund', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          booking_id: bookingId,
+          refund_amount: refundAmount,
+          reason: 'Admin verified equipment return and release'
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        onShowToast(data.message);
+        loadAdminData();
+      } else {
+        onShowToast(data.message || 'Refund failed', 'error');
       }
     } catch (err) {
       onShowToast(err.message, 'error');
@@ -320,6 +353,22 @@ export default function AdminDashboard({ currentUser, onShowToast }) {
           <span>Bookings & Escrow</span>
           <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-mono">
             {bookings.length}
+          </span>
+        </button>
+
+        {/* Transactions & Receipts Tab */}
+        <button
+          onClick={() => setAdminTab('transactions')}
+          className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+            adminTab === 'transactions'
+              ? 'bg-purple-600 text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900'
+          }`}
+        >
+          <Receipt className="w-3.5 h-3.5" />
+          <span>Transactions & Receipts</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-mono">
+            {payments.length}
           </span>
         </button>
         <button
@@ -660,6 +709,133 @@ export default function AdminDashboard({ currentUser, onShowToast }) {
                     </td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4.5: ALL TRANSACTIONS & RECEIPTS (Admin Duty - Complete Oversight) */}
+      {adminTab === 'transactions' && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm space-y-3">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">All Financial Transactions & Official Receipts</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Complete platform payment audit log with clear separation between rental charges and refundable security deposits.
+              </p>
+            </div>
+
+            <div className="relative max-w-xs w-full">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={paymentSearch}
+                onChange={(e) => setPaymentSearch(e.target.value)}
+                placeholder="Search receipt, txn ID, customer..."
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-purple-500"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 font-mono text-[11px] uppercase border-b border-slate-200 dark:border-slate-800">
+                  <th className="py-3 px-4">Receipt No</th>
+                  <th className="py-3 px-4">Txn ID</th>
+                  <th className="py-3 px-4">Booking</th>
+                  <th className="py-3 px-4">Customer (Borrower)</th>
+                  <th className="py-3 px-4">Lender</th>
+                  <th className="py-3 px-4">Rental Fee</th>
+                  <th className="py-3 px-4">Security Deposit</th>
+                  <th className="py-3 px-4">Total Paid</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/80">
+                {payments
+                  .filter((p) => {
+                    if (!paymentSearch) return true;
+                    const term = paymentSearch.toLowerCase();
+                    return (
+                      p.receipt_number?.toLowerCase().includes(term) ||
+                      p.transaction_id?.toLowerCase().includes(term) ||
+                      p.borrower_name?.toLowerCase().includes(term) ||
+                      p.item_title?.toLowerCase().includes(term)
+                    );
+                  })
+                  .map((p) => {
+                    const isRefunded = p.refund_status === 'refunded' || p.status === 'refunded';
+                    return (
+                      <tr key={p.payment_id} className="hover:bg-slate-50 dark:hover:bg-slate-950/40 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-purple-600 dark:text-purple-400">
+                          {p.receipt_number || `RCP-BK${p.booking_id}`}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                          {p.transaction_id || `TXN${p.payment_id}`}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-semibold text-slate-900 dark:text-white block">{p.item_title}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">#BK{p.booking_id}</span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-700 dark:text-slate-300">
+                          <span className="font-medium block">{p.borrower_name}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{p.borrower_email}</span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-700 dark:text-slate-300">
+                          <span className="font-medium block">{p.lender_name}</span>
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">{p.payee_upi_id || 'Direct UPI'}</span>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-slate-800 dark:text-slate-200">
+                          ₹{Number(p.rental_charges || 0).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4 font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                          ₹{Number(p.security_deposit || p.amount || 0).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4 font-mono font-black text-slate-900 dark:text-white">
+                          ₹{Number(p.amount).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4">
+                          {isRefunded ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                              Refunded
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              Successful
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {onOpenReceipt && (
+                              <button
+                                onClick={() => onOpenReceipt(p)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 text-[11px] font-bold border border-purple-200 dark:border-purple-800/80 transition-all active:scale-95"
+                                title="View Official Receipt"
+                              >
+                                <FileText className="w-3 h-3" />
+                                <span>Receipt</span>
+                              </button>
+                            )}
+
+                            {!isRefunded && (
+                              <button
+                                onClick={() => handleProcessRefund(p.booking_id, p.security_deposit || p.amount)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 dark:bg-slate-800 dark:hover:bg-blue-950/60 dark:text-slate-300 dark:hover:text-blue-400 text-[11px] font-medium transition-all"
+                                title="Process Refund"
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                                <span>Refund</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
